@@ -1,7 +1,7 @@
 Docker 1.10 Demo
 ================
 
-An automated, annotated, interactive demo of Docker 1.10's new features.
+An automated, annotated, interactive demo of Docker 1.10's new features using [ShutIt](https://github.com/ianmiell/shutit/blob/master/README.md).
 
 ```
 pip install shutit
