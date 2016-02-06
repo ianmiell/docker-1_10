@@ -83,8 +83,8 @@ class docker_1_10(ShutItModule):
 		shutit.send('chmod +x /usr/bin/docker')
 		#Runtime
 		#Add --userns-remap flag to daemon to support user namespaces (previously in experimental) #19187
-		shutit.send_file('/etc/subuid','dockremap:10000:1000')
-		shutit.send_file('/etc/subgid','dockremap:10000:1000')
+		shutit.send_file('/etc/subuid','dockremap:10000:1000',note='Create the subuid file for namespace support')
+		shutit.send_file('/etc/subgid','dockremap:10000:1000',note='Create the subgid file for namespace support')
 		shutit.send('nohup docker daemon --userns-remap=default &',note='Start the docker daemon with user namespace support')
 		shutit.send('docker run -d --user=root --name sleeper busybox sleep 30',note='Run a container as root for thirty seconds')
 		shutit.send('docker exec sleeper ps -a',note='Sleep is running as root in the container...')
@@ -97,93 +97,83 @@ do
 	stress --cpu 1 --timeout 100
 	echo done stressing
 	sleep 1
-done''')
+done''',note='Create the stresser script.')
 		shutit.send_file('Dockerfile','''FROM debian
 RUN apt-get update && apt-get install stress
 ADD stresser.sh /stresser.sh
 RUN chmod +x stresser.sh
-CMD /bin/bash -c /stresser.sh''')
-		shutit.send('docker build -t stress .')
-		shutit.send('docker run -d --name stresser stress',note='Start up the stresser cotainer')
+CMD /bin/bash -c /stresser.sh''',note='Create the stresser image Dockerfile')
+		shutit.send('docker build -t stress .',note='Build the stresser container')
+		shutit.send('docker run -d --name stresser stress',note='Run up the stresser cotainer')
 		shutit.send('sleep 2 && top -b | head',note='CPU is stressed!')
 		shutit.send('docker update --cpu-period 50000 --cpu-quota 25000 stresser',note='Dynamically limit the CPU of the running container to half a CPU')
+		shutit.send('sleep 2 && top -b | head',note='CPU is less stressed')
 		shutit.send('docker rm -f stresser')
 		#Updated docker events to include more meta-data and event types #18888
 		shutit.send('docker events --since 0 --until 1',note='More useful output in docker events.')
 		#Show the number of running, stopped, and paused containers in docker info #19249 #Show the OSType and Architecture in docker info #17478
 		shutit.send('docker info',note='More useful information in docker info')
-		shutit.send_file('/seccomp.json','''{
-    "defaultAction": "SCMP_ACT_ALLOW",
-    "syscalls": [
-        {
-            "name": "getcwd",
-            "action": "SCMP_ACT_ERRNO"
-        },
-        {
-            "name": "mount",
-            "action": "SCMP_ACT_ERRNO"
-        },
-        {
-            "name": "setns",
-            "action": "SCMP_ACT_ERRNO"
-        },
-        {
-            "name": "create_module",
-            "action": "SCMP_ACT_ERRNO"
-        },
-        {
-            "name": "chown",
-            "action": "SCMP_ACT_ERRNO"
-        },
-        {
-            "name": "chmod",
-            "action": "SCMP_ACT_ERRNO"
-        },
-        {
-            "name": "clock_settime",
-            "action": "SCMP_ACT_ERRNO"
-        },
-        {
-            "name": "clock_adjtime",
-            "action": "SCMP_ACT_ERRNO"
-        }
-    ]
-}''',note='Set up a seccomp file that allows changes to time')
-		shutit.login(command='docker run -it --security-opt seccomp:/seccomp.json debian')
-		shutit.logout()
-		shutit.pause_point('')
 
+		#Add --tmpfs flag to docker run to create a tmpfs mount in a container #13587
+		shutit.send("""docker run --tmpfs /mytmpfs debian bash -c 'mount | grep mytmpfs'""",note='Create an in-memory filesystem with --tmpfs')
 
-#Add support for custom seccomp profiles in --security-opt #17989
-#Add --tmpfs flag to docker run to create a tmpfs mount in a container #13587
-#Allow to set daemon configuration in a file and hot-reload it with the SIGHUP signal #18587
+		#Networking
+		#Add --internal flag to network create to restrict external access to and from the network #19276
+		shutit.send('docker network create --internal mynet',note='Create an internal docker network')
+		shutit.send('docker network ls',note='list our available networks')
+		shutit.send('docker run -d --name sleeper debian sleep infinity',note='Create a container')
+		shutit.send('docker exec -ti sleeper ping -W 1 -c 3 google.com',note='It can ping the outside world.')
+		shutit.send('docker network disconnect bridge sleeper',note='Disconnect the default open network bridge.')
+		shutit.send('docker network connect mynet sleeper',note='Connect our internal network bridge')
+		shutit.send('docker exec -ti sleeper ping -W 1 -c 3 google.com',note='We can no longer access the outside world from this network.')
 
-
-#Security
-#
+#TODO
 #Add default seccomp profile #18780
-#Add --authorization-plugin flag to daemon to customize ACLs #15365
+#Add support for custom seccomp profiles in --security-opt #17989
+#		shutit.send_file('/seccomp.json','''{
+#    "defaultAction": "SCMP_ACT_ALLOW",
+#    "syscalls": [
+#        {
+#            "name": "getcwd",
+#            "action": "SCMP_ACT_ERRNO"
+#        },
+#        {
+#            "name": "mount",
+#            "action": "SCMP_ACT_ERRNO"
+#        },
+#        {
+#            "name": "setns",
+#            "action": "SCMP_ACT_ERRNO"
+#        },
+#        {
+#            "name": "create_module",
+#            "action": "SCMP_ACT_ERRNO"
+#        },
+#        {
+#            "name": "chown",
+#            "action": "SCMP_ACT_ERRNO"
+#        },
+#        {
+#            "name": "chmod",
+#            "action": "SCMP_ACT_ERRNO"
+#        },
+#        {
+#            "name": "clock_settime",
+#            "action": "SCMP_ACT_ERRNO"
+#        },
+#        {
+#            "name": "clock_adjtime",
+#            "action": "SCMP_ACT_ERRNO"
+#        }
+#    ]
+#}''',note='Set up a seccomp file that allows changes to time')
+#		shutit.login(command='docker run -it --security-opt seccomp:/seccomp.json debian')
+#		shutit.logout()
+#TODO
+		#Security
+		#Add --authorization-plugin flag to daemon to customize ACLs #15365
 
-#Networking
-#
-#Use DNS-based discovery instead of /etc/hosts #19198
-#Support for network-scoped alias using --net-alias on run and --alias on network connect #19242
-#Add --internal flag to network create to restrict external access to and from the network #19276
-#Add discovery.heartbeat and discovery.ttl options to --cluster-store-opt to configure discovery TTL and heartbeat timer #18204
-#Add --link to network connect to provide a container-local alias #19229
-#Support for multi-host networking using built-in overlay driver for all engine supported kernels: 3.10+ #18775
-#--link is now supported on docker run for containers in user-defined network #19229
-#Add support for network connect/disconnect to stopped containers #18906
 
-#Logging
-#New logging driver for Splunk #16488
-#Add support for syslog over TCP+TLS #18998
-#Enhance docker logs --since and --until to support nanoseconds and time #17495
-#Enhance AWS logs to auto-detect region #16640
-
-#Volumes
-#
-#Add support to set the mount propagation mode for a volume #17034
 		shutit.logout()
 		return True
 
