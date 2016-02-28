@@ -81,7 +81,6 @@ class docker_1_10(ShutItModule):
 		shutit.login(user='root',command='sudo su - root')
 		shutit.send('curl -sSL -O https://get.docker.com/builds/Linux/x86_64/docker-1.10.0 && chmod +x docker-1.10.0 && sudo mv docker-1.10.0 /usr/bin/docker')
 		shutit.send('chmod +x /usr/bin/docker')
-		shutit.pause_point('')
 		#Runtime
 		#Add --userns-remap flag to daemon to support user namespaces (previously in experimental) #19187
 		shutit.send_file('/etc/subuid','dockremap:10000:1000',note='Create the subuid file for namespace support')
