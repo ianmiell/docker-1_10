@@ -81,6 +81,7 @@ class docker_1_10(ShutItModule):
 		shutit.login(user='root',command='sudo su - root')
 		shutit.send('curl -sSL -O https://get.docker.com/builds/Linux/x86_64/docker-1.10.0 && chmod +x docker-1.10.0 && sudo mv docker-1.10.0 /usr/bin/docker')
 		shutit.send('chmod +x /usr/bin/docker')
+		shutit.pause_point('')
 		#Runtime
 		#Add --userns-remap flag to daemon to support user namespaces (previously in experimental) #19187
 		shutit.send_file('/etc/subuid','dockremap:10000:1000',note='Create the subuid file for namespace support')
@@ -127,48 +128,23 @@ CMD /bin/bash -c /stresser.sh''',note='Create the stresser image Dockerfile')
 		shutit.send('docker network connect mynet sleeper',note='Connect our internal network bridge')
 		shutit.send('docker exec -ti sleeper ping -W 1 -c 3 google.com',note='We can no longer access the outside world from this network.')
 
-#TODO
-#Add default seccomp profile #18780
-#Add support for custom seccomp profiles in --security-opt #17989
-#		shutit.send_file('/seccomp.json','''{
-#    "defaultAction": "SCMP_ACT_ALLOW",
-#    "syscalls": [
-#        {
-#            "name": "getcwd",
-#            "action": "SCMP_ACT_ERRNO"
-#        },
-#        {
-#            "name": "mount",
-#            "action": "SCMP_ACT_ERRNO"
-#        },
-#        {
-#            "name": "setns",
-#            "action": "SCMP_ACT_ERRNO"
-#        },
-#        {
-#            "name": "create_module",
-#            "action": "SCMP_ACT_ERRNO"
-#        },
-#        {
-#            "name": "chown",
-#            "action": "SCMP_ACT_ERRNO"
-#        },
-#        {
-#            "name": "chmod",
-#            "action": "SCMP_ACT_ERRNO"
-#        },
-#        {
-#            "name": "clock_settime",
-#            "action": "SCMP_ACT_ERRNO"
-#        },
-#        {
-#            "name": "clock_adjtime",
-#            "action": "SCMP_ACT_ERRNO"
-#        }
-#    ]
-#}''',note='Set up a seccomp file that allows changes to time')
-#		shutit.login(command='docker run -it --security-opt seccomp:/seccomp.json debian')
-#		shutit.logout()
+		#Add default seccomp profile #18780
+		#Add support for custom seccomp profiles in --security-opt #17989
+		shutit.send_file('/seccomp.json','''{
+    "defaultAction": "SCMP_ACT_ALLOW",
+    "syscalls": [
+        {
+            "name": "mkdir",
+            "action": "SCMP_ACT_ERRNO"
+        }
+    ]
+}''',note='Set up a seccomp file that disallows the ability to make a directory')
+		shutit.login(command='docker run -it --security-opt seccomp:/seccomp.json debian',note='Log into a docker with a seccomp profile set')
+		shutit.send('whoami',note='I am root')
+		shutit.send('cd $HOME',note='I am in my home directory')
+		shutit.send('touch afile',note='I can create a file')
+		shutit.send('mkdir adir',note='But I cannot create a directory!',check_exit=False)
+		shutit.logout()
 #TODO
 		#Security
 		#Add --authorization-plugin flag to daemon to customize ACLs #15365
